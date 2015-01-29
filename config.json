@@ -1,0 +1,13 @@
+{
+   "name": "MilestoneCFD",
+   "className": "MilestoneApp",
+   "server": "https://rally1.rallydev.com",
+   "sdk": "2.0",
+   "javascript": [
+      "CFDCalculator.js",
+      "App.js"
+   ],
+   "css": [
+      "app.css"
+   ]
+}

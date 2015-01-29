@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MilestoneCFD</title>
+
+    <script type="text/javascript" src="https://rally1.rallydev.com/apps/2.0/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+                Ext.define("CFDCalculator",{extend:"Rally.data.lookback.calculator.TimeSeriesCalculator",getMetrics:function(){return _.map(this.stateFieldValues,function(stateFieldValue){return{as:stateFieldValue,groupByField:this.stateFieldName,allowedValues:[stateFieldValue],f:"groupByCount",display:"area"}},this)}});
+                Ext.define("MilestoneApp",{extend:"Rally.app.App",componentCls:"app",launch:function(){Deft.Promise.all([this._loadScheduleStateValues(),this._loadPreliminaryEstimateValues()]).then({success:function(){this._addChart()},scope:this})},_loadPreliminaryEstimateValues:function(){var store=Ext.create("Rally.data.wsapi.Store",{model:"preliminaryestimate",fetch:["Name","Value"]});return store.load().then({success:function(records){this.preliminaryEstimates=records},scope:this})},_loadScheduleStateValues:function(){return Rally.data.ModelFactory.getModel({type:"UserStory",success:function(model){model.getField("ScheduleState").getAllowedValueStore().load({callback:function(records){this.scheduleStateValues=_.invoke(records,"get","StringValue")},scope:this})},scope:this})},_addChart:function(){this.add({xtype:"rallychart",storeType:"Rally.data.lookback.SnapshotStore",storeConfig:this._getStoreConfig(),calculatorType:"CFDCalculator",calculatorConfig:{stateFieldName:"ScheduleState",stateFieldValues:this.scheduleStateValues,preliminaryEstimates:this.preliminaryEstimates},chartConfig:this._getChartConfig()})},_getStoreConfig:function(){return{find:{_TypeHierarchy:{$in:["HierarchicalRequirement","portfolioitem/chapter"]},Children:null,_ProjectHierarchy:this.getContext().getProject().ObjectID,_ValidFrom:{$gt:Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date,"day",-30))}},fetch:["ScheduleState"],hydrate:["ScheduleState"],sort:{_ValidFrom:1},context:this.getContext().getDataContext(),limit:1/0}},_getChartConfig:function(){return{chart:{zoomType:"xy"},title:{text:"Milestone Cumulative Flow"},xAxis:{tickmarkPlacement:"on",tickInterval:20,title:{text:"Date"}},yAxis:[{title:{text:"Count"}}],plotOptions:{series:{marker:{enabled:!1}},area:{stacking:"normal"}}}}});
+
+            Rally.launchApp('MilestoneApp', {
+                name:"MilestoneCFD",
+	            parentRepos:""
+            });
+
+        });
+    </script>
+
+
+    <style type="text/css">
+        
+    </style>
+</head>
+<body>
+</body>
+</html>
