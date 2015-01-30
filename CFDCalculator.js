@@ -4,8 +4,8 @@ Ext.define('CFDCalculator', {
     getMetrics: function () {
         return [
             {
-                as: 'ScopeTotal',
-                field: 'ScopeTotal',
+                as: 'Estimate',
+                field: 'Estimate',
                 display: 'area',
                 f: 'sum'
             }
@@ -37,7 +37,7 @@ Ext.define('CFDCalculator', {
         var self = this;
         return [
             {
-                "as": "ScopeTotal",
+                "as": "Estimate",
                 "f": function (snapshot) {
                     if(snapshot.State) {
                         var chapter = self._getChapterById(snapshot.ObjectID);

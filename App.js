@@ -2,13 +2,41 @@ Ext.define('MilestoneApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
 
-    config: {
-        defaultSettings: {
-            milestone: '/milestone/28857949153'
-        }
+    margin: '10px',
+
+    layout: {
+        type: 'vbox',
+        align: 'stretch'
     },
 
+    items: [
+        {
+            xtype: 'container',
+            itemId: 'header',
+            layout: {
+                type: 'hbox',
+                align: 'stretch'
+            }
+        }
+    ],
+
     launch: function () {
+        this.down('#header').add({
+            xtype: 'rallymilestonecombobox',
+            width: 200,
+            height: 22,
+            stateful: true,
+            stateId: this.getContext().getScopedStateId('milestone'),
+            context: this.getContext(),
+            listeners: {
+                ready: this._load,
+                select: this._load,
+                scope: this
+            }
+        });
+    },
+
+    _load: function() {
         Deft.Promise.all([
             this._loadMilestone(),
             this._loadChaptersInMilestone(),
@@ -16,6 +44,7 @@ Ext.define('MilestoneApp', {
             this._loadPreliminaryEstimateValues()
         ]).then({
             success: function() {
+                this._addProjectCheckboxes();
                 this._addChart();
             },
             scope: this
@@ -23,7 +52,7 @@ Ext.define('MilestoneApp', {
     },
 
     _getMilestone: function() {
-        return this.getSetting('milestone');
+        return this.down('rallymilestonecombobox').getValue();
     },
 
     _loadMilestone: function() {
@@ -46,7 +75,7 @@ Ext.define('MilestoneApp', {
     _loadChaptersInMilestone: function() {
         var store = Ext.create('Rally.data.wsapi.Store', {
             model: 'portfolioitem/chapter',
-            fetch: ['ObjectID', 'PreliminaryEstimate'],
+            fetch: ['ObjectID', 'Project', 'Name', 'PreliminaryEstimate', 'ActualStartDate', 'AcceptedLeafStoryPlanEstimateTotal', 'LeafStoryPlanEstimateTotal'],
             filters: [
                 {
                     property: 'Milestones',
@@ -96,9 +125,36 @@ Ext.define('MilestoneApp', {
         });
     },
 
+    _addProjectCheckboxes: function() {
+        if(this.down('checkboxgroup')) {
+            this.down('checkboxgroup').destroy();
+        }
+        var teams = _.reduce(this.chapters, function(projects, chapter) {
+            projects[Rally.util.Ref.getOidFromRef(chapter.get('Project'))] = chapter.get('Project');
+            return projects;
+        }, {});
+        this.down('#header').add({
+            xtype: 'checkboxgroup',
+            margin: '0 0 0 20px',
+            height: 22,
+            flex: 1,
+            items: _.map(_.values(teams), function(team) {
+                return { boxLabel: team.Name, name: 'project', inputValue: Rally.util.Ref.getOidFromRef(team), checked: true }
+            }),
+            listeners: {
+                change: this._addChart,
+                scope: this
+            }
+        });
+    },
+
     _addChart: function () {
+        if(this.down('rallychart')) {
+            this.down('rallychart').destroy();
+        }
         this.add({
             xtype: 'rallychart',
+            flex: 1,
             storeType: 'Rally.data.lookback.SnapshotStore',
             storeConfig: this._getStoreConfig(),
             calculatorType: 'CFDCalculator',
@@ -106,10 +162,12 @@ Ext.define('MilestoneApp', {
                 stateFieldName: 'ScheduleState',
                 stateFieldValues: this.scheduleStateValues,
                 preliminaryEstimates: this.preliminaryEstimates,
+                startDate: _.min(_.invoke(this.chapters, 'get', 'ActualStartDate')),
                 endDate: this.milestone.get('TargetDate'),
                 chapters: this.chapters
             },
-            chartConfig: this._getChartConfig()
+            chartConfig: this._getChartConfig(),
+            chartColors: ['#848689'].concat(Rally.ui.chart.Chart.prototype.chartColors)
         });
     },
 
@@ -117,7 +175,8 @@ Ext.define('MilestoneApp', {
         return {
             find: {
                 _TypeHierarchy: { '$in': [ 'HierarchicalRequirement', 'PortfolioItem/Chapter'] },
-                _ItemHierarchy: { '$in': _.invoke(this.chapters, 'getId')}
+                _ItemHierarchy: { '$in': _.invoke(this.chapters, 'getId')},
+                _ProjectHierarchy: { '$in': Ext.Array.from(this.down('checkboxgroup').getValue().project)}
             },
             fetch: ['ScheduleState', 'PlanEstimate', 'PortfolioItem', 'LeafStoryPlanEstimateTotal', 'State'],
             hydrate: ['ScheduleState', 'State'],
@@ -133,12 +192,26 @@ Ext.define('MilestoneApp', {
      * Generate a valid Highcharts configuration object to specify the chart
      */
     _getChartConfig: function () {
+        var totalAcceptedPoints = _.reduce(this.chapters, function(total, chapter) {
+            return total + chapter.get('AcceptedLeafStoryPlanEstimateTotal');
+        },  0);
+        var totalPoints = _.reduce(this.chapters, function(total, chapter) {
+            var leafPlanTotal = chapter.get('LeafStoryPlanEstimateTotal');
+            var prelimEstValue = _.find(this.preliminaryEstimates, function(preliminaryEstimate) {
+                return Rally.util.Ref.getRelativeUri(preliminaryEstimate) === Rally.util.Ref.getRelativeUri(chapter.get('PreliminaryEstimate'));
+            });
+            return total + Math.max(leafPlanTotal, prelimEstValue.get('Value'));
+        },  0, this);
+
         return {
             chart: {
                 zoomType: 'xy'
             },
             title: {
                 text: 'Milestone Cumulative Flow'
+            },
+            subtitle: {
+                text: Ext.Number.toFixed(((totalAcceptedPoints / totalPoints) * 100), 2) + ' % of ' + totalPoints + ' Total Points Completed'
             },
             xAxis: {
                 tickmarkPlacement: 'on',
