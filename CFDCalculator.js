@@ -48,5 +48,41 @@ Ext.define('CFDCalculator', {
                 }
             }
         ];
+    },
+
+    getSummaryMetricsConfig: function () {
+        return [
+            {
+                'as': 'Estimate_max',
+                'f': function(seriesData) {
+                    var max = 0, i = 0;
+                    for (i=0;i<seriesData.length;i++) {
+                        if(seriesData[i].Estimate > max) {
+                            max = seriesData[i].Estimate;
+                        }
+                    }
+                    return max;
+                }
+            }
+        ];
+    },
+
+    getDerivedFieldsAfterSummary: function () {
+        return  [
+            {
+                "as": "Ideal",
+                "f": function (row, index, summaryMetrics, seriesData) {
+                    var max = summaryMetrics.Estimate_max,
+                        increments = seriesData.length - 1,
+                        incrementAmount;
+                    if(increments === 0) {
+                        return max;
+                    }
+                    incrementAmount = max / increments;
+                    return Math.floor(100 * (index * incrementAmount)) / 100;
+                },
+                "display": "line"
+            }
+        ];
     }
 });
