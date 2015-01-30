@@ -75,7 +75,7 @@ Ext.define('MilestoneApp', {
     _loadChaptersInMilestone: function() {
         var store = Ext.create('Rally.data.wsapi.Store', {
             model: 'portfolioitem/chapter',
-            fetch: ['ObjectID', 'Project', 'Name', 'PreliminaryEstimate', 'ActualStartDate', 'AcceptedLeafStoryPlanEstimateTotal', 'LeafStoryPlanEstimateTotal'],
+            fetch: ['ObjectID', 'Project', 'Name', 'PreliminaryEstimate', 'ActualStartDate', 'PlannedEndDate', 'AcceptedLeafStoryPlanEstimateTotal', 'LeafStoryPlanEstimateTotal'],
             filters: [
                 {
                     property: 'Milestones',
@@ -162,9 +162,11 @@ Ext.define('MilestoneApp', {
                 stateFieldName: 'ScheduleState',
                 stateFieldValues: this.scheduleStateValues,
                 preliminaryEstimates: this.preliminaryEstimates,
-                startDate: _.min(_.invoke(this.chapters, 'get', 'ActualStartDate')),
-                endDate: this.milestone.get('TargetDate'),
-                chapters: this.chapters
+                startDate: _.min(_.compact(_.invoke(this.chapters, 'get', 'ActualStartDate'))),
+                endDate: _.max(_.compact(_.invoke(this.chapters, 'get', 'PlannedEndDate'))),
+//                endDate: this.milestone.get('TargetDate'),
+                chapters: this.chapters,
+                enableProjects: true
             },
             chartConfig: this._getChartConfig(),
             chartColors: ['#848689'].concat(Rally.ui.chart.Chart.prototype.chartColors)

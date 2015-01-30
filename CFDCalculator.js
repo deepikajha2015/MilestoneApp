@@ -84,5 +84,24 @@ Ext.define('CFDCalculator', {
                 "display": "line"
             }
         ];
+    },
+
+    runCalculation: function (snapshots) {
+        var chartData = this.callParent(arguments);
+        var acceptedSeriesData = chartData.series[4].data;
+        var today = Rally.util.DateTime.toIsoString(new Date());
+        var endIndex = _.indexOf(chartData.categories, today.substring(0, today.indexOf('T')));
+        var slope = (acceptedSeriesData[0] - acceptedSeriesData[endIndex]) / (0 - endIndex);
+
+        chartData.series.push({
+            dashStyle: 'Solid',
+            name: 'Actual',
+            type: 'line',
+            data: _.map(chartData.categories, function(tick, i) {
+                return i * slope;
+            })
+        });
+
+        return chartData;
     }
 });
