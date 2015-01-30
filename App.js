@@ -2,8 +2,16 @@ Ext.define('MilestoneApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
 
+    config: {
+        defaultSettings: {
+            milestone: '/milestone/28857949153'
+        }
+    },
+
     launch: function () {
         Deft.Promise.all([
+            this._loadMilestone(),
+            this._loadChaptersInMilestone(),
             this._loadScheduleStateValues(),
             this._loadPreliminaryEstimateValues()
         ]).then({
@@ -14,10 +22,56 @@ Ext.define('MilestoneApp', {
         });
     },
 
+    _getMilestone: function() {
+        return this.getSetting('milestone');
+    },
+
+    _loadMilestone: function() {
+        var milestoneId = Rally.util.Ref.getOidFromRef(this._getMilestone());
+        return Rally.data.ModelFactory.getModel({
+            type: 'Milestone',
+            success: function (model) {
+                model.load(milestoneId, {
+                    fetch: ['TargetDate'],
+                    callback: function (record) {
+                        this.milestone = record;
+                    },
+                    scope: this
+                });
+            },
+            scope: this
+        });
+    },
+
+    _loadChaptersInMilestone: function() {
+        var store = Ext.create('Rally.data.wsapi.Store', {
+            model: 'portfolioitem/chapter',
+            fetch: ['ObjectID', 'PreliminaryEstimate'],
+            filters: [
+                {
+                    property: 'Milestones',
+                    operator: 'contains',
+                    value: this._getMilestone()
+                }
+            ],
+            context: {
+                project: null
+            },
+            limit: Infinity
+        });
+        return store.load().then({
+            success: function(records) {
+                this.chapters = records;
+            },
+            scope: this
+        });
+    },
+
     _loadPreliminaryEstimateValues: function () {
         var store = Ext.create('Rally.data.wsapi.Store', {
             model: 'preliminaryestimate',
-            fetch: ['Name', 'Value']
+            fetch: ['Name', 'Value'],
+            limit: Infinity
         });
         return store.load().then({
             success: function(records) {
@@ -51,26 +105,22 @@ Ext.define('MilestoneApp', {
             calculatorConfig: {
                 stateFieldName: 'ScheduleState',
                 stateFieldValues: this.scheduleStateValues,
-                preliminaryEstimates: this.preliminaryEstimates
+                preliminaryEstimates: this.preliminaryEstimates,
+                endDate: this.milestone.get('TargetDate'),
+                chapters: this.chapters
             },
             chartConfig: this._getChartConfig()
         });
     },
 
-    /**
-     * Generate the store config to retrieve all snapshots for stories and defects in the current project scope
-     * within the last 30 days
-     */
     _getStoreConfig: function () {
         return {
             find: {
-                _TypeHierarchy: { '$in': [ 'HierarchicalRequirement', 'portfolioitem/chapter'] },
-                Children: null,
-                _ProjectHierarchy: this.getContext().getProject().ObjectID,
-                _ValidFrom: {'$gt': Rally.util.DateTime.toIsoString(Rally.util.DateTime.add(new Date(), 'day', -30)) }
+                _TypeHierarchy: { '$in': [ 'HierarchicalRequirement', 'PortfolioItem/Chapter'] },
+                _ItemHierarchy: { '$in': _.invoke(this.chapters, 'getId')}
             },
-            fetch: ['ScheduleState'],
-            hydrate: ['ScheduleState'],
+            fetch: ['ScheduleState', 'PlanEstimate', 'PortfolioItem', 'LeafStoryPlanEstimateTotal', 'State'],
+            hydrate: ['ScheduleState', 'State'],
             sort: {
                 _ValidFrom: 1
             },
@@ -92,7 +142,7 @@ Ext.define('MilestoneApp', {
             },
             xAxis: {
                 tickmarkPlacement: 'on',
-                tickInterval: 20,
+                tickInterval: 15,
                 title: {
                     text: 'Date'
                 }
@@ -100,7 +150,7 @@ Ext.define('MilestoneApp', {
             yAxis: [
                 {
                     title: {
-                        text: 'Count'
+                        text: 'Points'
                     }
                 }
             ],
