@@ -139,7 +139,7 @@ Ext.define('MilestoneApp', {
             height: 22,
             flex: 1,
             items: _.map(_.values(teams), function(team) {
-                return { boxLabel: team.Name, name: 'project', inputValue: Rally.util.Ref.getOidFromRef(team), checked: true }
+                return { boxLabel: team.Name, name: 'project', inputValue: Rally.util.Ref.getOidFromRef(team), checked: true };
             }),
             listeners: {
                 change: this._addChart,
