@@ -1,4 +1,4 @@
-Ext.define('MilestoneApp', {
+Ext.define('MilestoneCFD', {
     extend: 'Rally.app.App',
     componentCls: 'app',
 
@@ -164,7 +164,6 @@ Ext.define('MilestoneApp', {
                 preliminaryEstimates: this.preliminaryEstimates,
                 startDate: _.min(_.compact(_.invoke(this.chapters, 'get', 'ActualStartDate'))),
                 endDate: _.max(_.compact(_.invoke(this.chapters, 'get', 'PlannedEndDate'))),
-//                endDate: this.milestone.get('TargetDate'),
                 chapters: this.chapters,
                 enableProjects: true
             },

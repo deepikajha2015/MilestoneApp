@@ -2,11 +2,11 @@ Ext.define('CFDCalculator', {
     extend: 'Rally.data.lookback.calculator.TimeSeriesCalculator',
 
     getMetrics: function () {
-        return [
+        return  [
             {
-                as: 'Estimate',
-                field: 'Estimate',
-                display: 'area',
+                as: 'Scope',
+                field: 'Scope',
+                display: 'line',
                 f: 'sum'
             }
         ].concat(_.map(this.stateFieldValues, function (stateFieldValue) {
@@ -37,9 +37,9 @@ Ext.define('CFDCalculator', {
         var self = this;
         return [
             {
-                "as": "Estimate",
+                "as": "Scope",
                 "f": function (snapshot) {
-                    if(snapshot.State) {
+                    if (snapshot.State) {
                         var chapter = self._getChapterById(snapshot.ObjectID);
                         var preliminaryEstimate = self._getPreliminaryEstimateById(chapter.get('PreliminaryEstimate'));
                         return Math.max(preliminaryEstimate.get('Value'), snapshot.LeafStoryPlanEstimateTotal || 0);
@@ -53,12 +53,12 @@ Ext.define('CFDCalculator', {
     getSummaryMetricsConfig: function () {
         return [
             {
-                'as': 'Estimate_max',
-                'f': function(seriesData) {
+                'as': 'Scope_max',
+                'f': function (seriesData) {
                     var max = 0, i = 0;
-                    for (i=0;i<seriesData.length;i++) {
-                        if(seriesData[i].Estimate > max) {
-                            max = seriesData[i].Estimate;
+                    for (i = 0; i < seriesData.length; i++) {
+                        if (seriesData[i].Scope > max) {
+                            max = seriesData[i].Scope;
                         }
                     }
                     return max;
@@ -72,10 +72,10 @@ Ext.define('CFDCalculator', {
             {
                 "as": "Ideal",
                 "f": function (row, index, summaryMetrics, seriesData) {
-                    var max = summaryMetrics.Estimate_max,
+                    var max = summaryMetrics.Scope_max,
                         increments = seriesData.length - 1,
                         incrementAmount;
-                    if(increments === 0) {
+                    if (increments === 0) {
                         return max;
                     }
                     incrementAmount = max / increments;
@@ -97,7 +97,7 @@ Ext.define('CFDCalculator', {
             dashStyle: 'Solid',
             name: 'Actual',
             type: 'line',
-            data: _.map(chartData.categories, function(tick, i) {
+            data: _.map(chartData.categories, function (tick, i) {
                 return i * slope;
             })
         });
