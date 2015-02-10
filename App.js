@@ -39,9 +39,8 @@ Ext.define('MilestoneCFD', {
     _load: function() {
         Deft.Promise.all([
             this._loadMilestone(),
-            this._loadChaptersInMilestone(),
+            this._loadPIsInMilestone(),
             this._loadScheduleStateValues(),
-            this._loadPreliminaryEstimateValues()
         ]).then({
             success: function() {
                 this._addProjectCheckboxes();
@@ -72,39 +71,43 @@ Ext.define('MilestoneCFD', {
         });
     },
 
-    _loadChaptersInMilestone: function() {
-        var store = Ext.create('Rally.data.wsapi.Store', {
-            model: 'portfolioitem/chapter',
-            fetch: ['ObjectID', 'Project', 'Name', 'PreliminaryEstimate', 'ActualStartDate', 'PlannedEndDate', 'AcceptedLeafStoryPlanEstimateTotal', 'LeafStoryPlanEstimateTotal'],
+    _loadPIsInMilestone: function() {
+        return Ext.create('Rally.data.wsapi.Store', {
+            model: 'TypeDefinition',
+            fetch: ['TypePath'],
             filters: [
                 {
-                    property: 'Milestones',
-                    operator: 'contains',
-                    value: this._getMilestone()
+                    property: 'Parent.Name',
+                    value: 'Portfolio Item'
+                },
+                {
+                    property: 'Ordinal',
+                    value: 0
                 }
-            ],
-            context: {
-                project: null
-            },
-            limit: Infinity
-        });
-        return store.load().then({
+            ]
+        }).load().then({
             success: function(records) {
-                this.chapters = records;
-            },
-            scope: this
-        });
-    },
-
-    _loadPreliminaryEstimateValues: function () {
-        var store = Ext.create('Rally.data.wsapi.Store', {
-            model: 'preliminaryestimate',
-            fetch: ['Name', 'Value'],
-            limit: Infinity
-        });
-        return store.load().then({
-            success: function(records) {
-                this.preliminaryEstimates = records;
+                this.piType = records[0].get('TypePath');
+                return Ext.create('Rally.data.wsapi.Store', {
+                    model: this.piType,
+                    fetch: ['ObjectID', 'Project', 'Name', 'PreliminaryEstimate', 'ActualStartDate', 'PlannedEndDate', 'AcceptedLeafStoryPlanEstimateTotal', 'LeafStoryPlanEstimateTotal'],
+                    filters: [
+                        {
+                            property: 'Milestones',
+                            operator: 'contains',
+                            value: this._getMilestone()
+                        }
+                    ],
+                    context: {
+                        project: null
+                    },
+                    limit: Infinity
+                }).load().then({
+                    success: function(piRecords) {
+                        this.piRecords = piRecords;
+                    },
+                    scope: this
+                });
             },
             scope: this
         });
@@ -129,8 +132,8 @@ Ext.define('MilestoneCFD', {
         if(this.down('checkboxgroup')) {
             this.down('checkboxgroup').destroy();
         }
-        var teams = _.reduce(this.chapters, function(projects, chapter) {
-            projects[Rally.util.Ref.getOidFromRef(chapter.get('Project'))] = chapter.get('Project');
+        var teams = _.reduce(this.piRecords, function(projects, piRecord) {
+            projects[Rally.util.Ref.getOidFromRef(piRecord.get('Project'))] = piRecord.get('Project');
             return projects;
         }, {});
         this.down('#header').add({
@@ -161,22 +164,19 @@ Ext.define('MilestoneCFD', {
             calculatorConfig: {
                 stateFieldName: 'ScheduleState',
                 stateFieldValues: this.scheduleStateValues,
-                preliminaryEstimates: this.preliminaryEstimates,
-                startDate: _.min(_.compact(_.invoke(this.chapters, 'get', 'ActualStartDate'))),
-                endDate: _.max(_.compact(_.invoke(this.chapters, 'get', 'PlannedEndDate'))),
-                chapters: this.chapters,
+                startDate: _.min(_.compact(_.invoke(this.piRecords, 'get', 'ActualStartDate'))),
+                endDate: this.milestone.get('TargetDate'),
                 enableProjects: true
             },
-            chartConfig: this._getChartConfig(),
-            chartColors: ['#848689'].concat(Rally.ui.chart.Chart.prototype.chartColors)
+            chartConfig: this._getChartConfig()
         });
     },
 
     _getStoreConfig: function () {
         return {
             find: {
-                _TypeHierarchy: { '$in': [ 'HierarchicalRequirement', 'PortfolioItem/Chapter'] },
-                _ItemHierarchy: { '$in': _.invoke(this.chapters, 'getId')},
+                _TypeHierarchy: { '$in': [ 'HierarchicalRequirement'] },
+                _ItemHierarchy: { '$in': _.invoke(this.piRecords, 'getId')},
                 _ProjectHierarchy: { '$in': Ext.Array.from(this.down('checkboxgroup').getValue().project)}
             },
             fetch: ['ScheduleState', 'PlanEstimate', 'PortfolioItem', 'LeafStoryPlanEstimateTotal', 'State'],
@@ -193,15 +193,11 @@ Ext.define('MilestoneCFD', {
      * Generate a valid Highcharts configuration object to specify the chart
      */
     _getChartConfig: function () {
-        var totalAcceptedPoints = _.reduce(this.chapters, function(total, chapter) {
-            return total + chapter.get('AcceptedLeafStoryPlanEstimateTotal');
+        var totalAcceptedPoints = _.reduce(this.piRecords, function(total, piRecord) {
+            return total + piRecord.get('AcceptedLeafStoryPlanEstimateTotal');
         },  0);
-        var totalPoints = _.reduce(this.chapters, function(total, chapter) {
-            var leafPlanTotal = chapter.get('LeafStoryPlanEstimateTotal');
-            var prelimEstValue = _.find(this.preliminaryEstimates, function(preliminaryEstimate) {
-                return Rally.util.Ref.getRelativeUri(preliminaryEstimate) === Rally.util.Ref.getRelativeUri(chapter.get('PreliminaryEstimate'));
-            });
-            return total + Math.max(leafPlanTotal, prelimEstValue.get('Value'));
+        var totalPoints = _.reduce(this.piRecords, function(total, piRecord) {
+            return total + piRecord.get('LeafStoryPlanEstimateTotal');
         },  0, this);
 
         return {
